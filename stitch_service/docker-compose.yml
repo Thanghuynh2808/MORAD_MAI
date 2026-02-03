@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  stitch-service:
+    build: .
+    container_name: stitch-server
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app
+    # Limits for CPU intensive task
+    deploy:
+      resources:
+        limits:
+          memory: 8G
