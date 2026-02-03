@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  rpm-api:
+    build: .
+    container_name: rpm-server
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+    volumes:
+      - ./configs:/app/configs
+      - ./data:/app/data
+    restart: always

@@ -45,9 +45,11 @@ class ProductMatcher:
             logger.error(f"Failed to load support DB: {e}")
             return False
 
-    def process_image(self, image_path):
+    def process_image(self, image_or_path):
         """
         Process a single image: Detect -> Extract -> Match.
+        Args:
+            image_or_path: Path to image (str/Path) or numpy array (cv2 image)
         Returns: 
             img (cv2 image), results (dict with matches, boxes, timing)
         """
@@ -60,17 +62,28 @@ class ProductMatcher:
 
         # 1. Load Image
         io_load_start = time.time()
-        img = cv2.imread(str(image_path))
+        if isinstance(image_or_path, (str, bytes)) or hasattr(image_or_path, "__fspath__"):
+            img = cv2.imread(str(image_or_path))
+            image_source = str(image_or_path)
+        elif isinstance(image_or_path, np.ndarray):
+            img = image_or_path
+            image_source = "memory_array"
+        else:
+            logger.error("Invalid input type. Expected path or numpy array.")
+            return None, None
+            
         timing_info['io_load'] = time.time() - io_load_start
         
         if img is None:
-            logger.error(f"Failed to load image from {image_path}")
+            logger.error(f"Failed to load image from {image_source}")
             return None, None
 
         # 2. YOLO Detection
         yolo_start = time.time()
+        # 2. YOLO Detection
+        yolo_start = time.time()
         try:
-            yolo_results = self.yolo_model(str(image_path), conf=self.cfg.yolo_conf, iou=0.45, verbose=False)[0]
+            yolo_results = self.yolo_model(img, conf=self.cfg.yolo_conf, iou=0.45, verbose=False)[0]
             timing_info['yolo'] = time.time() - yolo_start
             if self.devices['yolo'] == 'cuda':
                 torch.cuda.empty_cache()
