@@ -108,7 +108,7 @@ def main():
                 )
                 
         # Save Result
-        out_path = Path(args.output_dir) / img_path.name
+        out_path = Path(config.output_dir) / img_path.name
         cv2.imwrite(str(out_path), annotated_img)
         logger.info(f"Saved to {out_path}")
 

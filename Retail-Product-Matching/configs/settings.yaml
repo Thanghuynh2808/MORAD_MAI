@@ -14,7 +14,13 @@ models:
   dino_thresh: 0.65
   lg_norm_thresh: 0.2
   lg_min_inliers: 30
-  batch_size: 32
+  batch_size: 1
+
+# Device configuration (Switch to 'cpu' if you get OOM on laptop)
+devices:
+  yolo: "cuda"
+  dino: "cuda"      # DINO is very heavy, moving to CPU saves ~2GB VRAM
+  lg: "cuda" # ONNX models on CPU are stable for demo
   
 matching:
   alpha: 0.2

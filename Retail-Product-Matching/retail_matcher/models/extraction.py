@@ -50,11 +50,20 @@ def batch_extract_dino_features(crops: List[np.ndarray], processor, model, devic
                 output = model(**inputs, output_hidden_states=True)
 
             features = output.last_hidden_state[:, 0, :]
-            all_features.append(F.normalize(features, p=2, dim=-1))
+            # Normalize and move to CPU to save VRAM during collection
+            norm_features = F.normalize(features, p=2, dim=-1).cpu()
+            all_features.append(norm_features)
+            
+            # Cleanup
+            del output, inputs, features
+            if device == 'cuda':
+                torch.cuda.empty_cache()
 
-        return torch.cat(all_features, dim=0)
+        return torch.cat(all_features, dim=0) if all_features else None
     except Exception as e:
         logger.error(f"Error in batch_extract_dino_features: {e}")
+        if device == 'cuda':
+            torch.cuda.empty_cache()
         return None
 
 

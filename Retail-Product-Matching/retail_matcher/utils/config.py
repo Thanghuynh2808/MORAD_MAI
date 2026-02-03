@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
 from types import SimpleNamespace
+import torch
 from retail_matcher.utils.common import logger
 
 def load_config(config_path=None):
@@ -27,9 +28,10 @@ def load_config(config_path=None):
         flat_cfg = {}
         for section, values in cfg_dict.items():
             for key, value in values.items():
-                # For paths, convert relative paths to absolute paths
                 if section == 'paths':
                     flat_cfg[key] = str(project_root / value)
+                elif section == 'devices':
+                    flat_cfg[f"{key}_device"] = value
                 else:
                     flat_cfg[key] = value
         
@@ -55,5 +57,9 @@ def get_default_config(project_root):
         alpha=0.2,
         beta=0.8,
         dino_high_conf_threshold=0.8,
-        skip_lg_inliers_value=999
+        skip_lg_inliers_value=999,
+        # Default devices
+        yolo_device="cuda" if torch.cuda.is_available() else "cpu",
+        dino_device="cpu", # Default to CPU for safe demo
+        lg_device="cpu"    # Default to CPU for safe demo
     )

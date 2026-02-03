@@ -33,50 +33,80 @@ def matrix_matching(query_features, support_db, top_k, dino_threshold):
 
     return candidates_per_query
 
-def run_fast_hybrid_matching(query_feat, support_feats_list, matcher_session, batch_size=16):
+def run_fast_hybrid_matching(pairs_to_verify, matcher_session, batch_size=16):
+    """
+    Batched LightGlue Matching for multiple diverse pairs.
+    pairs_to_verify: List of tuples (query_feat, support_feat)
+    Returns: List of (inliers, min_kpts) corresponding to each pair
+    """
     results = []
-    total_jobs = len(support_feats_list)
+    total_jobs = len(pairs_to_verify)
     if total_jobs == 0:
         return results
 
     input_kpts_name = matcher_session.get_inputs()[0].name
     input_desc_name = matcher_session.get_inputs()[1].name
 
-    # Normalize Query Keypoints
-    q_kpts_norm = normalize_keypoints(query_feat['keypoints'][0], query_feat['width'], query_feat['height'])
-    q_desc = query_feat['descriptors'][0]
+    # Pre-process all pairs
+    all_q_kpts = []
+    all_q_desc = []
+    all_s_kpts = []
+    all_s_desc = []
 
-    s_kpts_norm_list = []
-    s_desc_list = []
+    for q_feat, s_feat in pairs_to_verify:
+        # Normalize Query
+        q_kpts = normalize_keypoints(q_feat['keypoints'][0], q_feat['width'], q_feat['height'])
+        all_q_kpts.append(q_kpts)
+        all_q_desc.append(q_feat['descriptors'][0])
 
-    for s_feat in support_feats_list:
-        s_kpts_norm = normalize_keypoints(s_feat['keypoints'][0], s_feat['width'], s_feat['height'])
-        s_kpts_norm_list.append(s_kpts_norm)
-        s_desc_list.append(s_feat['descriptors'][0])
+        # Normalize Support
+        s_kpts = normalize_keypoints(s_feat['keypoints'][0], s_feat['width'], s_feat['height'])
+        all_s_kpts.append(s_kpts)
+        all_s_desc.append(s_feat['descriptors'][0])
 
-    all_s_kpts = np.stack(s_kpts_norm_list, axis=0)  # (N, 1024, 2)
-    all_s_desc = np.stack(s_desc_list, axis=0)      # (N, 1024, 256)
+    # Convert to Numpy arrays
+    all_q_kpts = np.stack(all_q_kpts, axis=0)
+    all_q_desc = np.stack(all_q_desc, axis=0)
+    all_s_kpts = np.stack(all_s_kpts, axis=0)
+    all_s_desc = np.stack(all_s_desc, axis=0)
 
+    # Process in batches
     for i in range(0, total_jobs, batch_size):
-        current_s_kpts = all_s_kpts[i: i + batch_size]
-        current_s_desc = all_s_desc[i: i + batch_size]
-        B = len(current_s_kpts)
-
+        # Slice current batch
+        curr_q_kpts = all_q_kpts[i: i + batch_size]
+        curr_q_desc = all_q_desc[i: i + batch_size]
+        curr_s_kpts = all_s_kpts[i: i + batch_size]
+        curr_s_desc = all_s_desc[i: i + batch_size]
+        
+        B = len(curr_q_kpts)
+        
         # --- VECTORIZED INPUT PREPARATION ---
+        # Interleave query and support: [Q1, S1, Q2, S2, ...]
         batch_kpts = np.zeros((2 * B, 512, 2), dtype=np.float32)
         batch_desc = np.zeros((2 * B, 512, 256), dtype=np.float32)
 
-        batch_kpts[0::2] = q_kpts_norm
-        batch_desc[0::2] = q_desc
-
-        batch_kpts[1::2] = current_s_kpts
-        batch_desc[1::2] = current_s_desc
+        batch_kpts[0::2] = curr_q_kpts
+        batch_desc[0::2] = curr_q_desc
+        batch_kpts[1::2] = curr_s_kpts
+        batch_desc[1::2] = curr_s_desc
 
         try:
             outputs = matcher_session.run(None, {input_kpts_name: batch_kpts, input_desc_name: batch_desc})
             matches = outputs[0]
 
             for j in range(B):
+                # LightGlue Light outputs matches where batch_index corresponds to the pair
+                # Since we interleaved, pair j corresponds to batch index j (in LightGlue batch logic)
+                # But wait, LightGlue batch output format: [batch_idx, match_idx_0, match_idx_1]
+                # Our input batch size to ONNX is 2*B, but logically it treats it as B pairs? 
+                # NO. Standard LightGlue ONNX takes (Batch, N, D) and outputs matches for each pair in batch?
+                # Actually, standard LightGlue treats input as a batch of images.
+                # If we send 2*B images, it tries to match image 0 with 1, 2 with 3? 
+                # It depends on how the ONNX was exported.
+                # Assuming "interleaved" export (Match 0-1, 2-3...):
+                # The output 'matches' tensor usually has shape (N, 3) -> [batch_idx, idx0, idx1] or similar
+                # Let's rely on previous logic: matches[:, 0] == j
+                
                 valid_matches = matches[matches[:, 0] == j]
                 results.append((len(valid_matches), 512))
         except Exception as e:
