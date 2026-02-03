@@ -1,0 +1,30 @@
+# Python development
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+*.log
+
+# Project specific
+data/support_db.pt
+data/test_images/*
+!data/test_images/.gitkeep
+data/support_images/*
+!data/support_images/.gitkeep
+data/result_images/
+data/weights/*
+!data/weights/.gitkeep
+
+# Output/Runs
+runs/
+results/
+test_results_hybrid/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
