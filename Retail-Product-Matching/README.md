@@ -33,10 +33,17 @@ RPM_modified/
 │   │   └── visualization.py    # Bounding box and label drawing
 │   └── pipeline.py             # ProductMatcher class (Pipeline orchestrator)
 ├── scripts/                    # Auxiliary scripts
-│   └── build_gallery.py        # Build feature bank from support_images
+│   ├── build_gallery.py        # Build feature bank from support_images
+│   └── test_api_client.py      # Client to test the FastAPI endpoint
+├── server/                     # API SERVER (FastAPI)
+│   ├── app.py                  # Main API entry point
+│   └── schemas.py              # Pydantic data models
 ├── tools/                      # Development and extension tools
 │   └── lightglue_export/       # Tools to convert/quantize LightGlue to ONNX
 ├── requirements.txt
+├── Dockerfile                  # Containerization for deployment
+├── docker-compose.yml          # GPU-enabled orchestration
+├── run_server.sh               # Quick-start script for local API
 └── README.md
 ```
 
@@ -59,11 +66,36 @@ Before running the matching process, you must extract features for the template 
 python3 scripts/build_gallery.py
 ```
 
-### 4. Run Matching
-Process images in the `test_images` folder:
+### 4. Run Matching (Batch Mode)
+Process images in the `test_images` folder and save results to disk:
 ```bash
 python3 app/main.py
 ```
+
+## 🌐 API Deployment (FastAPI)
+
+The project includes a robust API server to serve predictions in real-time.
+
+### Local Run
+Use the convenience script to start the server:
+```bash
+chmod +x run_server.sh
+./run_server.sh
+```
+The API will be available at `http://localhost:8000`. You can access the interactive documentation at `http://localhost:8000/docs`.
+
+### Test the API
+You can test the prediction endpoint using the provided client:
+```bash
+python3 scripts/test_api_client.py data/test_images/1.jpg
+```
+
+### Docker Deployment (Production)
+To deploy with GPU support using Docker Compose:
+```bash
+docker-compose up -d --build
+```
+*Note: Requires `nvidia-container-toolkit` installed on the host.*
 
 ## 📈 Technical Improvements
 - **ProductMatcher Class**: Holds the state of loaded models, making the pipeline flexible for use in different environments (e.g., APIs, Notebooks).
