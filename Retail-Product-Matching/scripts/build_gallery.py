@@ -10,23 +10,25 @@ from retail_matcher.models.loader import load_model
 from retail_matcher.utils.common import load_support_images, logger
 from retail_matcher.models.extraction import aggregate_support_features
 
-def build_feature_bank():
-    # Setup paths
-    base_dir = PROJECT_ROOT
-    yolo_path = base_dir / "data" / "weights" / "yolo" / "best-obb.pt"
-    support_dir = base_dir / "data" / "support_images"
-    output_path = base_dir / "data" / "support_db.pt"
+from retail_matcher.utils.config import load_config
 
+def build_feature_bank():
+    # 1. Load config
+    config = load_config()
+    
+    # 2. Setup Device
     device_str = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Using device: {device_str}")
     
+    # 3. Check paths
+    support_dir = Path(config.support_dir)
     if not support_dir.exists():
         logger.error(f"Support directory not found at {support_dir}")
         return
 
-    # Load models
+    # 4. Load models
     try:
-        models = load_model(str(yolo_path), device_str, base_weights_dir=base_dir/"data"/"weights")
+        models = load_model(config.yolo_path, device_str)
         _, dinov3_processor, dinov3_model, sp_session, _, device = models
     except Exception as e:
         logger.error(f"Failed to load models: {e}")
@@ -43,6 +45,7 @@ def build_feature_bank():
     
     support_db = aggregate_support_features(support_images, dinov3_model, dinov3_processor, sp_session, device)
     
+    output_path = Path(config.support_db)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(support_db, str(output_path))
     logger.info(f"Feature bank created successfully and saved to {output_path.absolute()}")
