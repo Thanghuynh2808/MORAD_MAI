@@ -12,8 +12,10 @@ class BoundingBox(BaseModel):
 class PriceTagResult(BaseModel):
     """Represents a single price tag detected and OCR-read on the shelf."""
     tag_id: int
-    price: Optional[str] = None          # e.g. "15,000" or None if OCR failed
-    box: List[float]                     # [x1, y1, x2, y2] in panorama coords
+    price: Optional[str] = None           # Giá hiển thị chính (= giá KM nếu có, ngược lại = giá thường)
+    original_price: Optional[str] = None  # Giá gốc (giá cao hơn trên tag, nếu có 2 giá)
+    discount_price: Optional[str] = None  # Giá khuyến mãi (giá thấp hơn trên tag, nếu có 2 giá)
+    box: List[float]                      # [x1, y1, x2, y2] in panorama coords
 
 
 class MappedItem(BaseModel):
