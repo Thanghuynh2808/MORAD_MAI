@@ -41,7 +41,7 @@ JSON: panorama + products + prices
 ## 📦 Cấu trúc Repository
 
 ```
-MAI_MORAD/
+Retail_Insight_Pipeline/
 ├── Retail-Product-Matching/    # RPM Service — detect & match sản phẩm, đọc giá
 │   ├── README.md               ← Chi tiết triển khai RPM
 │   └── ...
