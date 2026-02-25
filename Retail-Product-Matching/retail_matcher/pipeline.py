@@ -80,8 +80,6 @@ class ProductMatcher:
 
         # 2. YOLO Detection
         yolo_start = time.time()
-        # 2. YOLO Detection
-        yolo_start = time.time()
         try:
             yolo_results = self.yolo_model(img, conf=self.cfg.yolo_conf, iou=0.45, verbose=False)[0]
             timing_info['yolo'] = time.time() - yolo_start
@@ -191,7 +189,7 @@ class ProductMatcher:
 
         # PHASE 1: Collect all verification jobs
         verification_jobs = [] # List of (query_idx, cand_idx_in_list, query_feat, support_feat, meta_info)
-        matches_per_query = [None] * len(boxes) # To store final result for each query
+        matches_per_query = [None] * len(valid_boxes) # Must match valid_boxes, NOT raw boxes
 
         for i, candidates in enumerate(candidates_per_query):
             x1, y1, x2, y2 = valid_boxes[i]
