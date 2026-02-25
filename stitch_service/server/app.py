@@ -94,6 +94,8 @@ def _build_response(panorama, products, price_tags, ordered_filenames):
             price_tag_obj = MappedPriceTag(
                 tag_id=int(pt_raw.get("tag_id", 0)),
                 price=pt_raw.get("price"),
+                original_price=pt_raw.get("original_price"),
+                discount_price=pt_raw.get("discount_price"),
                 box=[float(x) for x in pt_raw["box"]],
             )
 
@@ -115,6 +117,8 @@ def _build_response(panorama, products, price_tags, ordered_filenames):
         MappedPriceTag(
             tag_id=int(t.get("tag_id", i)),
             price=t.get("price"),
+            original_price=t.get("original_price"),
+            discount_price=t.get("discount_price"),
             box=[float(x) for x in t["box"]],
         )
         for i, t in enumerate(price_tags)
