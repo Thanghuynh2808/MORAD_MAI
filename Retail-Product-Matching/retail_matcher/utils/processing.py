@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
-from typing import List, Tuple
+from collections import Counter
+from typing import List, Tuple, Dict, Optional
 from retail_matcher.utils.common import logger
 
 def apply_clahe(img_cv2: np.ndarray) -> np.ndarray:
@@ -53,3 +54,95 @@ def normalize_keypoints(kpts: np.ndarray, w: int, h: int) -> np.ndarray:
     scale = size.max() / 2
     kpts_norm = (kpts - shift) / scale
     return kpts_norm.astype(np.float32)
+
+
+def map_products_to_price_tags(
+    products: List[Dict],
+    price_tags: List[Dict],
+) -> List[Dict]:
+    """
+    Map each product bounding box to the most likely price tag using a
+    3-step Cluster-based Voting algorithm.
+
+    Steps
+    -----
+    1. Local Mapping  – For each product, find the closest price tag that is
+       *below* the product and *overlaps* it on the X-axis.
+    2. Clustering     – Group products by their ``class_name``.
+    3. Voting         – Within each class group, the price tag with the most
+       votes (local mappings) is assigned to every product in the group.
+
+    Parameters
+    ----------
+    products : List[Dict]
+        Each dict must contain ``"box": [x1, y1, x2, y2]`` and
+        ``"class_name": str``.
+    price_tags : List[Dict]
+        Each dict must contain ``"box": [x1, y1, x2, y2]``. A ``"tag_id"``
+        key is added automatically if missing.
+
+    Returns
+    -------
+    List[Dict]
+        Same ``products`` list (mutated in-place) with a ``"price_tag"`` key
+        added to every item. Value is the matched tag dict or ``None``.
+    """
+    # --- Normalise: ensure every tag has a unique tag_id --------------------
+    tag_index: Dict[int, Dict] = {}
+    for i, tag in enumerate(price_tags):
+        if "tag_id" not in tag:
+            tag["tag_id"] = i
+        tag_index[tag["tag_id"]] = tag
+
+    # --- Step 1: Local Mapping ----------------------------------------------
+    local_votes: List[Optional[int]] = []   # one entry per product
+
+    for product in products:
+        px1, py1, px2, py2 = product["box"][:4]
+
+        best_tag_id: Optional[int] = None
+        best_dist: float = float("inf")
+
+        for tag in price_tags:
+            tx1, ty1, tx2, ty2 = tag["box"][:4]
+
+            # Condition A: tag must be at or below the product (allow small overlap)
+            if ty1 < py1:
+                continue
+
+            # Condition B: X-ranges must overlap
+            if tx2 <= px1 or tx1 >= px2:
+                continue
+
+            # Metric: vertical distance between product bottom and tag top
+            dist = ty1 - py2
+            if dist < best_dist:
+                best_dist = dist
+                best_tag_id = tag["tag_id"]
+
+        local_votes.append(best_tag_id)
+
+    # --- Step 2: Cluster by class_name --------------------------------------
+    class_groups: Dict[str, List[int]] = {}   # class_name -> list of product indices
+    for idx, product in enumerate(products):
+        cls = product.get("class_name", "__unknown__")
+        class_groups.setdefault(cls, []).append(idx)
+
+    # --- Step 3: Voting ------------------------------------------------------
+    for cls, indices in class_groups.items():
+        votes = [local_votes[i] for i in indices if local_votes[i] is not None]
+
+        if votes:
+            winner_tag_id, count = Counter(votes).most_common(1)[0]
+            winning_tag = tag_index[winner_tag_id]
+            logger.debug(
+                f"Class '{cls}': tag_id={winner_tag_id} won with {count}/{len(indices)} votes"
+            )
+        else:
+            winning_tag = None
+            logger.debug(f"Class '{cls}': no price tag candidate found")
+
+        for i in indices:
+            products[i]["price_tag"] = winning_tag
+
+    return products
