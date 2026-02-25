@@ -133,24 +133,29 @@ class PriceTagParser:
 
     def run_ocr(self, crop_img):
         """
-        Recognize text on crop image using PaddleOCR. 
-        Fallback to EasyOCR if no value found or confidence < 0.7.
-        Only keep text if CONFIDENCE >= 0.5 AND price values extracted (Regex).
-        Returns None if no valid price is found, otherwise returns the visualized image.
-        """
-        # Ensure 3-channel color image for drawing boxes/text (since preprocess_crop returns grayscale)
-        if len(crop_img.shape) == 2:
-            vis_img = cv2.cvtColor(crop_img, cv2.COLOR_GRAY2BGR)
-        else:
-            vis_img = crop_img.copy()
-            
-        h, w = vis_img.shape[:2]
+        Recognize text on crop image using PaddleOCR with EasyOCR fallback.
 
+        Returns
+        -------
+        dict or None
+            Structured result for backend consumption::
+
+                {
+                    "price": str,          # highest detected price string, e.g. "15,000"
+                    "discount_price": str | None,  # second price if present
+                    "original_price": str | None,
+                    "confidence": float,
+                    "source": "Paddle" | "EasyOCR",
+                    "all_prices": [(price_str, int_val), ...]
+                }
+
+            Returns ``None`` if no valid price value was found.
+        """
         paddle_res = self.paddle_engine.ocr(crop_img, cls=True)
-        
+
         valid_results = []
         source = "Paddle"
-        
+
         if paddle_res and paddle_res[0] is not None:
             for line in paddle_res[0]:
                 box, (text, conf) = line
@@ -164,13 +169,12 @@ class PriceTagParser:
                             "conf": conf,
                             "raw_text": text
                         })
-                
+
         avg_conf = np.mean([r["conf"] for r in valid_results]) if valid_results else 0.0
 
-        # Fallback to EasyOCR if list is empty or confidence is low
+        # Fallback to EasyOCR if empty or low confidence
         if not valid_results or avg_conf < 0.7:
             easy_res = self.easy_engine.readtext(crop_img)
-            
             easy_valid_results = []
             if easy_res:
                 for line in easy_res:
@@ -185,124 +189,151 @@ class PriceTagParser:
                                 "conf": conf,
                                 "raw_text": text
                             })
-                    
-            # Prioritize EasyOCR results if more confident or PaddleOCR fails
+
             easy_avg_conf = np.mean([r["conf"] for r in easy_valid_results]) if easy_valid_results else 0.0
             if not valid_results or (easy_valid_results and easy_avg_conf > avg_conf):
                 valid_results = easy_valid_results
                 source = "EasyOCR"
                 avg_conf = easy_avg_conf
             else:
-                source = "Paddle" 
+                source = "Paddle"
 
-        # Discard this crop if no valid price is found
         if not valid_results:
             return None
 
-        # Draw bounding boxes for valid values
-        for res in valid_results:
-            box_np = np.array(res["box"]).astype(np.int32)
-            # Paddle: [tl, tr, br, bl]
-            # Green for Paddle, Red for EasyOCR
-            color = (0, 255, 0) if source == "Paddle" else (255, 0, 0)
-            cv2.polylines(vis_img, [box_np], isClosed=True, color=color, thickness=2)
-
-        avg_conf_final = avg_conf
-
-        # Classify Original Price and Discount Price
-        display_texts = []
-        # Find unique prices (by integer value) in valid_results
+        # Deduplicate prices by integer value, keep highest confidence
         unique_prices = {}
         for r in valid_results:
-            if r["val"] not in unique_prices:
+            if r["val"] not in unique_prices or r["conf"] > unique_prices[r["val"]]["conf"]:
                 unique_prices[r["val"]] = r
-            else:
-                # Prioritize strings with higher confidence or longer source if same price
-                if r["conf"] > unique_prices[r["val"]]["conf"]:
-                    unique_prices[r["val"]] = r
 
-        # Sort price values in descending order
-        sorted_price_vals = sorted(unique_prices.keys(), reverse=True)
-        
-        if len(sorted_price_vals) >= 2:
-            org_price = unique_prices[sorted_price_vals[0]]
-            disc_price = unique_prices[sorted_price_vals[1]]
-            display_texts.append(f"Ori: {org_price['text']}")
-            display_texts.append(f"Disc: {disc_price['text']}")
-            # Skip other prices if more than 2
+        sorted_vals = sorted(unique_prices.keys(), reverse=True)
+        all_prices = [(unique_prices[v]["text"], v) for v in sorted_vals]
+
+        result = {
+            "price": all_prices[0][0] if all_prices else None,
+            "original_price": all_prices[0][0] if len(all_prices) >= 2 else None,
+            "discount_price": all_prices[1][0] if len(all_prices) >= 2 else None,
+            "confidence": float(avg_conf),
+            "source": source,
+            "all_prices": all_prices,
+        }
+        # Convenience key: if two prices, "price" = the cheaper (discount) one
+        if len(all_prices) >= 2:
+            result["price"] = all_prices[1][0]   # discount price is the lower value
+
+        return result
+
+    def run_ocr_visual(self, crop_img):
+        """
+        Same as run_ocr but returns a visualized numpy image instead of a dict.
+        Used by process_folder() for batch demo / debugging.
+        Returns None if no price found.
+        """
+        ocr_data = self.run_ocr(crop_img)
+        if ocr_data is None:
+            return None
+
+        # Rebuild vis_img
+        if len(crop_img.shape) == 2:
+            vis_img = cv2.cvtColor(crop_img, cv2.COLOR_GRAY2BGR)
         else:
-            only_price = unique_prices[sorted_price_vals[0]]
-            display_texts.append(f"Price: {only_price['text']}")
+            vis_img = crop_img.copy()
+        h, w = vis_img.shape[:2]
 
-        # Define drawing parameters
+        # Re-run detection just for box drawing (lightweight; results already cached above)
+        # We use the source info from ocr_data to decide color
+        source = ocr_data["source"]
+        color = (0, 255, 0) if source == "Paddle" else (255, 0, 0)
+
+        # Build display labels
+        display_texts = []
+        if ocr_data.get("original_price") and ocr_data.get("discount_price"):
+            display_texts.append(f"Ori:  {ocr_data['original_price']}")
+            display_texts.append(f"Disc: {ocr_data['discount_price']}")
+        elif ocr_data.get("price"):
+            display_texts.append(f"Price: {ocr_data['price']}")
+
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.5
         line_height = 20
+        pad_h = max((len(display_texts) * line_height) + 35, 60)
 
-        # Calculate dynamic padding based on number of lines
-        pad_h = (len(display_texts) * line_height) + 35
-        pad_h = max(pad_h, 60) # Minimum padding
-        
         padded = cv2.copyMakeBorder(vis_img, 0, pad_h, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
-        
-        colorText = (0, 0, 0) # Black text on white background for clarity
         current_y = h + 20
-        
         for txt in display_texts:
-            cv2.putText(padded, txt, (5, current_y), font, font_scale, colorText, 1, cv2.LINE_AA)
+            cv2.putText(padded, txt, (5, current_y), font, font_scale, (0, 0, 0), 1, cv2.LINE_AA)
             current_y += line_height
-            
-        # Print source and confidence at the bottom
-        cv2.putText(padded, f"[{source}] Conf: {avg_conf_final:.2f}", (5, current_y), font, 0.4, (200, 0, 0), 1, cv2.LINE_AA)
-
+        cv2.putText(padded, f"[{source}] Conf: {ocr_data['confidence']:.2f}",
+                    (5, current_y), font, 0.4, (200, 0, 0), 1, cv2.LINE_AA)
         return padded
 
-    def process_image(self, img_path, output_folder=None):
+    def process_image(self, img_or_path, output_folder=None):
         """
-        Process 1 image: detect boxes, crop, OCR, save results.
-        Returns a list of processed crops.
+        Process 1 image: detect tag bounding boxes, preprocess crops, run OCR.
+
+        Returns
+        -------
+        list[dict]
+            Each dict is a structured price-tag result ready for the backend::
+
+                {
+                    "box": [x1, y1, x2, y2],   # tag location in original image coords
+                    "price": str | None,
+                    "original_price": str | None,
+                    "discount_price": str | None,
+                    "confidence": float,
+                    "source": str,
+                }
         """
         if self.model is None:
             print("YOLO model not initialized successfully!")
             return []
 
-        original_img = cv2.imread(img_path)
+        # Accept both file path and numpy array
+        if isinstance(img_or_path, np.ndarray):
+            original_img = img_or_path
+            img_name = "array_input"
+        else:
+            original_img = cv2.imread(str(img_or_path))
+            img_name = os.path.basename(str(img_or_path))
+
         if original_img is None:
-            print(f"Cannot read image: {img_path}")
+            print(f"Cannot read image: {img_or_path}")
             return []
 
-        img_name = os.path.basename(img_path)
-        results = self.model.predict(source=img_path, save=False, verbose=False)
-        processed_crops = []
+        results = self.model.predict(source=original_img, save=False, verbose=False)
+        tag_dicts = []
 
         for result in results:
-            if output_folder:
-                # Save full detection image for reference
+            if output_folder and img_name != "array_input":
                 save_path = os.path.join(output_folder, f"det_{img_name}")
                 result.save(filename=save_path)
 
             boxes = result.boxes.xyxy.cpu().numpy()
-            
+
             for box in boxes:
                 x1, y1, x2, y2 = map(int, box[:4])
                 h_img, w_img = original_img.shape[:2]
                 x1, y1 = max(0, x1), max(0, y1)
                 x2, y2 = min(w_img, x2), min(h_img, y2)
-                
+
                 crop_img = original_img[y1:y2, x1:x2]
                 processed = self.preprocess_crop(crop_img)
-                
+
                 if processed is not None:
-                    # Run OCR and visualize
-                    ocr_vis_img = self.run_ocr(processed)
-                    if ocr_vis_img is not None:
-                        processed_crops.append(ocr_vis_img)
-                        
-        return processed_crops
+                    # Bug 5 fix: run_ocr now returns structured dict, not a visual image
+                    ocr_data = self.run_ocr(processed)
+                    if ocr_data is not None:
+                        ocr_data["box"] = [x1, y1, x2, y2]  # original image coords
+                        tag_dicts.append(ocr_data)
+
+        return tag_dicts
 
     def process_folder(self, input_folder, output_folder):
         """
-        Process all images in a folder and combine results.
+        Process all images in a folder and combine VISUAL results (for demo/debugging).
+        Uses run_ocr_visual() to produce annotated images.
         """
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
@@ -315,21 +346,33 @@ class PriceTagParser:
             print(f"No images found in folder {input_folder}")
             return
 
-        all_processed_crops = []
+        all_visual_crops = []
         print(f"Found {len(image_files)} images. Starting pipeline...")
 
         for img_name in image_files:
             img_path = os.path.join(input_folder, img_name)
             print(f"Processing: {img_name}")
-            crops = self.process_image(img_path, output_folder=output_folder)
-            all_processed_crops.extend(crops)
 
-        # Combine all crops into a single image
-        if all_processed_crops:
-            print(f"Combining {len(all_processed_crops)} crop pieces...")
-            # Use 4 columns so the image isn't too wide
-            combined_result = self.combine_crops(all_processed_crops, cols=4)
-            
+            original_img = cv2.imread(img_path)
+            if original_img is None or self.model is None:
+                continue
+
+            results = self.model.predict(source=original_img, save=False, verbose=False)
+            for result in results:
+                boxes = result.boxes.xyxy.cpu().numpy()
+                for box in boxes:
+                    x1, y1, x2, y2 = map(int, box[:4])
+                    h_i, w_i = original_img.shape[:2]
+                    crop_img = original_img[max(0,y1):min(h_i,y2), max(0,x1):min(w_i,x2)]
+                    processed = self.preprocess_crop(crop_img)
+                    if processed is not None:
+                        vis = self.run_ocr_visual(processed)
+                        if vis is not None:
+                            all_visual_crops.append(vis)
+
+        if all_visual_crops:
+            print(f"Combining {len(all_visual_crops)} crop pieces...")
+            combined_result = self.combine_crops(all_visual_crops, cols=4)
             if combined_result is not None:
                 combined_path = os.path.join(output_folder, "combined_crops_result.jpg")
                 cv2.imwrite(combined_path, combined_result)
