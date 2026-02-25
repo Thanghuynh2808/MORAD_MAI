@@ -16,7 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from retail_matcher.pipeline import ProductMatcher
 from retail_matcher.utils.config import load_config
 from retail_matcher.utils.common import logger
-from server.schemas import PredictionResponse, HealthResponse, MatchResult
+from server.schemas import PredictionResponse, HealthResponse, MappedItem, PriceTagResult
 
 # Global Matcher Instance
 matcher_instance = None
@@ -120,18 +120,40 @@ async def predict(file: UploadFile = File(...)):
         # Format Response
         matches_formatted = []
         for m in results.get('matches', []):
-            matches_formatted.append(MatchResult(
-                class_name=m['class'],
-                score=float(m['score']),
+            # Build optional price_tag sub-object
+            pt_raw = m.get('price_tag')
+            price_tag_obj = None
+            if pt_raw is not None:
+                price_tag_obj = PriceTagResult(
+                    tag_id=pt_raw.get('tag_id', 0),
+                    price=pt_raw.get('price'),
+                    box=[float(x) for x in pt_raw['box']],
+                )
+
+            matches_formatted.append(MappedItem(
+                class_name=m.get('class', 'Unknown'),
+                score=float(m.get('score', 0.0)),
                 box=[float(x) for x in m['box']],
-                matched=m['matched'],
-                details=m.get('details')
+                matched=m.get('matched', False),
+                price_tag=price_tag_obj,
+                details=m.get('details'),
             ))
-            
+
+        # Collect all warped price tags (may be empty for single-frame requests)
+        all_tags = [
+            PriceTagResult(
+                tag_id=t.get('tag_id', i),
+                price=t.get('price'),
+                box=[float(x) for x in t['box']],
+            )
+            for i, t in enumerate(results.get('price_tags', []))
+        ]
+
         return PredictionResponse(
             matches=matches_formatted,
+            price_tags=all_tags,
             inference_time=results.get('timing', {}).get('total', 0.0),
-            image_size=[width, height]
+            image_size=[width, height],
         )
 
     except Exception as e:
