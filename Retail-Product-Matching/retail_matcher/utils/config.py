@@ -48,7 +48,7 @@ def get_default_config(project_root):
         output_dir=str(project_root / "data" / "result_images"),
         support_db=str(project_root / "data" / "support_db.pt"),
         product_yolo_path=str(project_root / "data" / "weights" / "yolo" / "best-obb.pt"),
-        tag_yolo_path=str(project_root / "data" / "weights" / "ocr" / "best.pt"),
+        tag_yolo_path=str(project_root / "data" / "weights" / "yolo" / "best.pt"),
         yolo_conf=0.25,
         top_k=5,
         dino_thresh=0.65,
