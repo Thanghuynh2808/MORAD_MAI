@@ -8,6 +8,11 @@ from retail_matcher.models.loader import load_model
 from retail_matcher.models.extraction import batch_extract_dino_features
 from retail_matcher.models.matching import matrix_matching, run_fast_hybrid_matching
 
+try:
+    from retail_matcher.models.ocr import PriceTagParser
+except ImportError:
+    PriceTagParser = None
+
 class ProductMatcher:
     def __init__(self, config):
         """
@@ -27,6 +32,18 @@ class ProductMatcher:
         self.dino_device = torch.device(self.devices['dino'])
         
         self.support_db = None
+
+        # Bug 4 fix: initialise PriceTagParser for price-tag detection & OCR
+        self.price_tag_parser = None
+        ocr_model_path = getattr(config, 'ocr_model_path', None)
+        if PriceTagParser is not None and ocr_model_path:
+            try:
+                self.price_tag_parser = PriceTagParser(yolo_model_path=ocr_model_path)
+                logger.info(f"PriceTagParser loaded from {ocr_model_path}")
+            except Exception as e:
+                logger.warning(f"PriceTagParser could not be loaded: {e}. Price tag detection disabled.")
+        else:
+            logger.info("PriceTagParser skipped (ocr_model_path not configured or module unavailable).")
 
     def load_gallery(self, db_path):
         try:
@@ -288,5 +305,19 @@ class ProductMatcher:
 
         timing_info['lightglue'] = time.time() - lg_start
         timing_info['total'] = time.time() - start_time
+
+        # Bug 4 fix: run PriceTagParser on the original image to detect price tags
+        price_tags = []
+        if self.price_tag_parser is not None:
+            try:
+                price_tags = self.price_tag_parser.process_image(img)
+                logger.debug(f"PriceTagParser found {len(price_tags)} price tag(s)")
+            except Exception as e:
+                logger.warning(f"PriceTagParser failed on this frame: {e}")
         
-        return img, {'matches': final_matches, 'classes': [m['class'] for m in final_matches if m['matched']], 'timing': timing_info}
+        return img, {
+            'matches': final_matches,
+            'price_tags': price_tags,
+            'classes': [m['class'] for m in final_matches if m['matched']],
+            'timing': timing_info
+        }
