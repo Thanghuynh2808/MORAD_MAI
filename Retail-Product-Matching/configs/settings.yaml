@@ -6,7 +6,7 @@ paths:
   output_dir: "data/result_images"
   support_db: "data/support_db.pt"
   product_yolo_path: "data/weights/yolo/best-obb.pt"
-  tag_yolo_path: "data/weights/ocr/best.pt"
+  tag_yolo_path: "data/weights/yolo/best.pt"
   weights_dir: "data/weights"
 
 models:
