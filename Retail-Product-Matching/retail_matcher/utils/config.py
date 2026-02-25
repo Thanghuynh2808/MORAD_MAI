@@ -47,7 +47,8 @@ def get_default_config(project_root):
         support_dir=str(project_root / "data" / "support_images"),
         output_dir=str(project_root / "data" / "result_images"),
         support_db=str(project_root / "data" / "support_db.pt"),
-        yolo_path=str(project_root / "data" / "weights" / "yolo" / "best-obb.pt"),
+        product_yolo_path=str(project_root / "data" / "weights" / "yolo" / "best-obb.pt"),
+        tag_yolo_path=str(project_root / "data" / "weights" / "ocr" / "best.pt"),
         yolo_conf=0.25,
         top_k=5,
         dino_thresh=0.65,
@@ -61,6 +62,5 @@ def get_default_config(project_root):
         # Default devices
         yolo_device="cuda" if torch.cuda.is_available() else "cpu",
         dino_device="cpu", # Default to CPU for safe demo
-        lg_device="cpu",   # Default to CPU for safe demo
-        ocr_model_path=str(project_root / "data" / "weights" / "ocr" / "best.pt"),
+        lg_device="cpu"    # Default to CPU for safe demo
     )
