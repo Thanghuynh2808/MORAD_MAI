@@ -16,8 +16,10 @@ class StitchRequest(BaseModel):
 class MappedPriceTag(BaseModel):
     """Price tag warped to panorama coordinates."""
     tag_id: int
-    price: Optional[str] = None    # e.g. "15,000" or None if OCR failed
-    box: List[float]               # [x1, y1, x2, y2] on panorama
+    price: Optional[str] = None           # Giá hiển thị chính
+    original_price: Optional[str] = None  # Giá gốc (cao hơn, nếu có 2 giá)
+    discount_price: Optional[str] = None  # Giá khuyến mãi (thấp hơn, nếu có 2 giá)
+    box: List[float]                      # [x1, y1, x2, y2] on panorama
 
 
 class MappedProduct(BaseModel):
