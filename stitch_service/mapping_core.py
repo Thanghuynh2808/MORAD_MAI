@@ -141,6 +141,7 @@ def run_mapping_core(images_list, detections_map):
     # ── 3. Warp products AND price tags to panorama coords ───────────────────
     all_warped_products = []
     all_warped_tags = []
+    global_tag_id = 0  # Unique counter across ALL frames (avoids tag_id collision)
 
     for idx, img in enumerate(images_list):
         frame_dets = det_map.get(idx, {"products": [], "price_tags": []})
@@ -178,15 +179,17 @@ def run_mapping_core(images_list, detections_map):
                 "original_image_idx": idx,
             })
 
-        # Warp price tags — pass all metadata through unchanged
+        # Warp price tags — reassign a GLOBALLY unique tag_id to avoid per-frame collision
         for tag in tags_raw:
             warped_box = _warp_box(
                 tag["box"], camera, warper, scale_x, scale_y, offset_x, offset_y
             )
-            warped_tag = {k: v for k, v in tag.items() if k != "box"}
+            warped_tag = {k: v for k, v in tag.items() if k != "box" and k != "tag_id"}
             warped_tag["box"] = warped_box
+            warped_tag["tag_id"] = global_tag_id   # Override with unique global ID
             warped_tag["original_image_idx"] = idx
             all_warped_tags.append(warped_tag)
+            global_tag_id += 1
 
     # ── 4. NMS on products only (tags are EXCLUDED to avoid suppression) ─────
     products_after_nms = apply_nms(all_warped_products)
