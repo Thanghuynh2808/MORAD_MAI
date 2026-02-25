@@ -66,9 +66,11 @@ async def root():
 async def health_check():
     """Check if the server matches are ready."""
     is_loaded = matcher_instance is not None
-    devices = matcher_instance.devices if is_loaded else {}
+    raw_devices = matcher_instance.devices if is_loaded else {}
+    # Force all values to str for Pydantic compatibility
+    devices = {k: str(v) for k, v in raw_devices.items()}
     return {
-        "status": "ok" if is_loaded else "error", 
+        "status": "ok" if is_loaded else "error",
         "model_loaded": is_loaded,
         "device_info": devices
     }
@@ -92,30 +94,14 @@ async def predict(file: UploadFile = File(...)):
             
         height, width = img.shape[:2]
 
-        # Run pipeline
-        # Note: Since process_image is synchronous (CPU/GPU bound), 
-        # normally we should run it in a threadpool, but FastAPI manages sync defs in threadpool automatically.
-        # But here 'predict' is async so we should ideally await a thread run.
-        # However, for simplicity now, we'll run it directly (it might block event loop briefly).
-        
-        # NOTE: pipeline.process_image expects a path, but we have an image array.
-        # We need to adapt process_image to accept numpy arrays too.
-        # Let's modify pipeline.py or create a wrapper. 
-        # Modifying pipeline to accept loaded images is better design.
-        
-        # Temporary workaround: Save to tmp or modify pipeline. 
-        # Let's assume we modify pipeline.py to accept numpy image in next step.
-        # For now, let's look at pipeline.py lines 62-67: it explicitly reads from path.
-        # We MUST refactor pipeline.py to support existing image array.
-        
-        # ... Wait, I'll refactor pipeline.py in the next tool call.
-        # Assuming matcher_instance.process_image supports numpy array or I create a helper.
-        
-        # Let's assume process_image_memory method exists (I will add it).
+        # Run inference pipeline (supports both numpy array and file path)
         _, results = matcher_instance.process_image(img)
-        
-        if not results:
-             raise HTTPException(status_code=500, detail="Inference returned no results.")
+
+        if results is None:
+            raise HTTPException(status_code=500, detail="Inference pipeline returned None (support DB may not be loaded).")
+
+        if not results.get('matches') and 'error' in results:
+            raise HTTPException(status_code=500, detail=results['error'])
 
         # Format Response
         matches_formatted = []
