@@ -1,4 +1,4 @@
-# 🏪 MAI MORAD — Retail AI Platform
+# 🏪Retail-Insight-Pipeline
 
 Hệ thống AI nhận diện sản phẩm và đọc giá trên kệ hàng bán lẻ từ ảnh chụp bằng điện thoại. Gồm 2 microservice độc lập, giao tiếp với nhau qua HTTP.
 
