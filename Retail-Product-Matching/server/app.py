@@ -113,6 +113,8 @@ async def predict(file: UploadFile = File(...)):
                 price_tag_obj = PriceTagResult(
                     tag_id=pt_raw.get('tag_id', 0),
                     price=pt_raw.get('price'),
+                    original_price=pt_raw.get('original_price'),
+                    discount_price=pt_raw.get('discount_price'),
                     box=[float(x) for x in pt_raw['box']],
                 )
 
@@ -130,6 +132,8 @@ async def predict(file: UploadFile = File(...)):
             PriceTagResult(
                 tag_id=t.get('tag_id', i),
                 price=t.get('price'),
+                original_price=t.get('original_price'),
+                discount_price=t.get('discount_price'),
                 box=[float(x) for x in t['box']],
             )
             for i, t in enumerate(results.get('price_tags', []))
