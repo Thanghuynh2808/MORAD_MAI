@@ -14,7 +14,7 @@ def load_model(config, base_weights_dir=None):
     logger.info("Loading models...")
     start_time = time.time()
     
-    yolo_path = config.yolo_path
+    yolo_path = config.product_yolo_path
     yolo_device = config.yolo_device
     dino_device = config.dino_device
     lg_device = config.lg_device
