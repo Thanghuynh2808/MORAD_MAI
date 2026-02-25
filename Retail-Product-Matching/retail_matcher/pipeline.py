@@ -35,15 +35,15 @@ class ProductMatcher:
 
         # Bug 4 fix: initialise PriceTagParser for price-tag detection & OCR
         self.price_tag_parser = None
-        ocr_model_path = getattr(config, 'ocr_model_path', None)
-        if PriceTagParser is not None and ocr_model_path:
+        tag_yolo_path = getattr(config, 'tag_yolo_path', None)
+        if PriceTagParser is not None and tag_yolo_path:
             try:
-                self.price_tag_parser = PriceTagParser(yolo_model_path=ocr_model_path)
-                logger.info(f"PriceTagParser loaded from {ocr_model_path}")
+                self.price_tag_parser = PriceTagParser(yolo_model_path=tag_yolo_path)
+                logger.info(f"PriceTagParser loaded from {tag_yolo_path}")
             except Exception as e:
                 logger.warning(f"PriceTagParser could not be loaded: {e}. Price tag detection disabled.")
         else:
-            logger.info("PriceTagParser skipped (ocr_model_path not configured or module unavailable).")
+            logger.info("PriceTagParser skipped (tag_yolo_path not configured or module unavailable).")
 
     def load_gallery(self, db_path):
         try:
