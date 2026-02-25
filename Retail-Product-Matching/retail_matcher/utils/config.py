@@ -61,5 +61,6 @@ def get_default_config(project_root):
         # Default devices
         yolo_device="cuda" if torch.cuda.is_available() else "cpu",
         dino_device="cpu", # Default to CPU for safe demo
-        lg_device="cpu"    # Default to CPU for safe demo
+        lg_device="cpu",   # Default to CPU for safe demo
+        ocr_model_path=str(project_root / "data" / "weights" / "ocr" / "best.pt"),
     )
