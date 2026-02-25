@@ -106,8 +106,10 @@ def map_products_to_price_tags(
         for tag in price_tags:
             tx1, ty1, tx2, ty2 = tag["box"][:4]
 
-            # Condition A: tag must be at or below the product (allow small overlap)
-            if ty1 < py1:
+            # Condition A: tag top must be at or below the product bottom.
+            # Allow 20% vertical overlap tolerance (e.g. tag slightly overlaps product footer).
+            tolerance = (py2 - py1) * 0.2
+            if ty1 < (py2 - tolerance):
                 continue
 
             # Condition B: X-ranges must overlap
