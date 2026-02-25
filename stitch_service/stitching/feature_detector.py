@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from pathlib import Path
 
 import cv2 as cv
 import numpy as np
@@ -23,8 +24,9 @@ class FeatureDetector:
         self.detector_name = detector
         if detector == "superpoint":
             from .superpoint_detector import SuperPointDetector
-            # Default path if not provided
-            model_path = kwargs.get("model_path", "/home/thanghuynh/work/project/fpt/image_stitching/weight_superpoint/superpoint_batch.onnx")
+            # Default path: Retail-Product-Matching/data/weights/lightglue/superpoint_batch.onnx
+            default_path = Path(__file__).parent.parent.parent / "Retail-Product-Matching" / "data" / "weights" / "lightglue" / "superpoint_batch.onnx"
+            model_path = kwargs.get("model_path", str(default_path))
             self.detector = SuperPointDetector(model_path=model_path)
         else:
             self.detector = FeatureDetector.DETECTOR_CHOICES[detector](**kwargs)

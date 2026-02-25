@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import cv2 as cv
 import numpy as np
@@ -17,7 +18,9 @@ class FeatureMatcher:
         self.matcher_type = matcher_type
         if matcher_type == "lightglue":
             from .lightglue_matcher import LightGlueMatcher
-            model_path = kwargs.get("model_path", "/home/thanghuynh/work/project/fpt/image_stitching/weight_lightglue/lightglue_batch.onnx")
+            # Default path: Retail-Product-Matching/data/weights/lightglue/lightglue_batch.onnx
+            default_path = Path(__file__).parent.parent.parent / "Retail-Product-Matching" / "data" / "weights" / "lightglue" / "lightglue_batch.onnx"
+            model_path = kwargs.get("model_path", str(default_path))
             self.matcher = LightGlueMatcher(model_path=model_path)
         elif matcher_type == "affine":
             self.matcher = cv.detail_AffineBestOf2NearestMatcher(**kwargs)
