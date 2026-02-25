@@ -53,6 +53,27 @@ Retail_Insight_Pipeline/
 
 ---
 
+## 📥 Tải Model Weights
+
+> **Tất cả model weights** được lưu trên Google Drive. Tải về và đặt vào đúng vị trí trước khi chạy.
+
+**🔗 [Tải weights tại đây (Google Drive)](https://drive.google.com/drive/folders/1o0_M5Lb0Z6gmX_PAGJ8gvLzetUIviqvN?usp=sharing)**
+
+Sau khi tải về, đặt các file vào đúng đường dẫn:
+
+| File                    | Mục đích                        | Đặt vào                                                                |
+| ----------------------- | ------------------------------- | ---------------------------------------------------------------------- |
+| `best-obb.pt`           | YOLO OBB — detect **sản phẩm**  | `Retail-Product-Matching/data/weights/yolo/best-obb.pt`                |
+| `best.pt`               | YOLO — detect **nhãn giá**      | `Retail-Product-Matching/data/weights/yolo/best.pt`                    |
+| `superpoint_batch.onnx` | SuperPoint local features       | `Retail-Product-Matching/data/weights/lightglue/superpoint_batch.onnx` |
+| `lightglue_batch.onnx`  | LightGlue feature matching      | `Retail-Product-Matching/data/weights/lightglue/lightglue_batch.onnx`  |
+| `support_db.pt`         | Feature Bank (gallery đã build) | `Retail-Product-Matching/data/support_db.pt`                           |
+
+> ⚠️ **Quan trọng:** Hệ thống **sẽ không khởi động** nếu thiếu bất kỳ file nào trong bảng trên.
+
+---
+
+
 ## ⚡ Khởi động nhanh (Local)
 
 Mở **2 terminal riêng biệt**:
