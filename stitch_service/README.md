@@ -22,7 +22,7 @@ Mobile App gửi N ảnh
 [Coordinate Warping]
    ├─ Warp product boxes  ─┐
    └─ Warp tag boxes ──────┤─► Tất cả về hệ tọa độ panorama
-                            │
+                           │
         ▼
 [NMS] ── Lọc sản phẩm trùng lặp (KHÔNG áp lên price tags)
         │
